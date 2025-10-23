@@ -1,0 +1,179 @@
+.App {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  background-color: #282c34;
+  padding: 20px;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.wallet-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.wallet-address {
+  background-color: #444;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+
+.btn-connect {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.btn-connect:hover {
+  background-color: #45a049;
+}
+
+.btn-disconnect {
+  background-color: #f44336;
+  color: white;
+}
+
+.btn-disconnect:hover {
+  background-color: #da190b;
+}
+
+.menu {
+  display: flex;
+  background-color: #f0f0f0;
+  padding: 0;
+  margin: 0;
+  border-bottom: 2px solid #ddd;
+}
+
+.menu button {
+  flex: 1;
+  padding: 15px;
+  background-color: transparent;
+  border: none;
+  border-right: 1px solid #ddd;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.menu button:hover {
+  background-color: #e0e0e0;
+}
+
+.menu button.active {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.content {
+  flex: 1;
+  padding: 30px;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.connect-prompt,
+.home-view {
+  text-align: center;
+  padding: 50px 20px;
+}
+
+.connect-prompt h2,
+.home-view h2 {
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.customer-view,
+.store-view {
+  width: 100%;
+}
+
+.customer-view h2,
+.store-view h2 {
+  margin-bottom: 30px;
+  color: #333;
+}
+
+.section {
+  background-color: #f9f9f9;
+  padding: 20px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
+
+.section h3 {
+  margin-top: 0;
+  color: #555;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: #333;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.file-info {
+  margin-top: 5px;
+  font-size: 12px;
+  color: #666;
+}
+
+.btn-primary {
+  background-color: #2196F3;
+  color: white;
+  padding: 12px 24px;
+  margin-top: 10px;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #0b7dda;
+}
+
+.btn-primary:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.info-text {
+  margin-top: 15px;
+  font-size: 12px;
+  color: #666;
+  word-break: break-all;
+}
