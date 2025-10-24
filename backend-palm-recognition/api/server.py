@@ -6,11 +6,17 @@ Reads registered palmprints from a folder and compares new images against them
 from flask import Flask, request, jsonify
 from eth_account.messages import encode_defunct
 from eth_account import Account
+from dotenv import load_dotenv
 import edcc
 import os
 import tempfile
+import hashlib
 from pathlib import Path
 from typing import Dict, List
+import blockchain
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -94,6 +100,39 @@ def load_registered_palmprints():
     print(f"Loaded {len(registered_codes)} registered wallets with {sum(len(c) for c in registered_codes.values())} total palmprints")
 
 
+def identify_palm(image_path: str) -> tuple[bool, str | None, float]:
+    """
+    Identify a palmprint by comparing against all registered palmprints.
+
+    Args:
+        image_path: Path to the palm image file to identify
+
+    Returns:
+        Tuple of (match_found, wallet_address, similarity_score)
+        - match_found: True if a match above threshold was found
+        - wallet_address: The matched wallet address or None
+        - similarity_score: The best similarity score found
+    """
+    if not registered_codes:
+        raise ValueError("No registered palmprints available")
+
+    # Encode the uploaded palmprint
+    query_code = encoder.encode_using_file(image_path)
+
+    # Compare against all registered palmprints
+    # Return immediately when a match above threshold is found
+    for wallet_address, codes in registered_codes.items():
+        for code in codes:
+            score = query_code.compare_to(code)
+
+            # If we find a match above threshold, return immediately
+            if score >= SIMILARITY_THRESHOLD:
+                return (True, wallet_address, score)
+
+    # No match found above threshold
+    return (False, None, 0.0)
+
+
 @app.route("/", methods=["GET"])
 def root():
     """Health check"""
@@ -133,29 +172,13 @@ def identify_palmprint():
         tmp_path = tmp.name
 
     try:
-        # Encode the uploaded palmprint
-        query_code = encoder.encode_using_file(tmp_path)
+        # Call the identification function
+        match_found, wallet_address, similarity_score = identify_palm(tmp_path)
 
-        # Compare against all registered palmprints
-        # Return immediately when a match above threshold is found
-        for wallet_address, codes in registered_codes.items():
-            for code in codes:
-                score = query_code.compare_to(code)
-
-                # If we find a match above threshold, return immediately
-                if score >= SIMILARITY_THRESHOLD:
-                    return jsonify({
-                        "match_found": True,
-                        "wallet_address": wallet_address,
-                        "similarity_score": score,
-                        "threshold": SIMILARITY_THRESHOLD
-                    })
-
-        # No match found above threshold
         return jsonify({
-            "match_found": False,
-            "wallet_address": None,
-            "similarity_score": 0.0,
+            "match_found": match_found,
+            "wallet_address": wallet_address,
+            "similarity_score": similarity_score,
             "threshold": SIMILARITY_THRESHOLD
         })
 
@@ -250,6 +273,161 @@ def register_palmprint():
         if file_path.exists():
             os.remove(file_path)
         return jsonify({"detail": f"Error registering palmprint: {str(e)}"}), 500
+
+
+@app.route("/scanned_palm", methods=["POST"])
+def scanned_palm():
+    """
+    Process palm scan for payment.
+
+    1. Identifies customer from palm scan
+    2. Calls PalmPay smart contract to execute payment from customer to store
+
+    Required form data:
+      - palm_image: The palm image file to identify
+      - amount_usd: Amount in USD to charge
+      - store_address: Store's wallet address (recipient)
+
+    Returns:
+      - Success: Transaction details including tx hash
+      - Failure: Error message
+
+    Example usage:
+      curl -X POST \
+        -F "palm_image=@customer_palm.jpg" \
+        -F "amount_usd=25.50" \
+        -F "store_address=0x123abc..." \
+        http://localhost:8000/scanned_palm
+    """
+    # Check if blockchain is initialized
+    if not blockchain.is_initialized():
+        return jsonify({
+            "detail": "Blockchain not initialized. Check environment variables.",
+            "blockchain_status": blockchain.get_status()
+        }), 503
+
+    # Get form data
+    print("\n" + "="*80)
+    print("📸 /scanned_palm endpoint called")
+    print("="*80)
+
+    if 'palm_image' not in request.files:
+        return jsonify({"detail": "palm_image file is required"}), 400
+
+    palm_image = request.files['palm_image']
+    if palm_image.filename == '':
+        return jsonify({"detail": "No file selected"}), 400
+
+    print(f"✓ Palm image received: {palm_image.filename}")
+
+    amount_usd = request.form.get('amount_usd')
+    if not amount_usd:
+        return jsonify({"detail": "amount_usd is required"}), 400
+
+    try:
+        amount_usd = float(amount_usd)
+        if amount_usd <= 0:
+            return jsonify({"detail": "amount_usd must be greater than 0"}), 400
+    except ValueError:
+        return jsonify({"detail": "amount_usd must be a valid number"}), 400
+
+    store_address = request.form.get('store_address')
+    if not store_address or not store_address.strip():
+        return jsonify({"detail": "store_address is required"}), 400
+
+    print(f"✓ Amount USD: ${amount_usd}")
+    print(f"✓ Store Address: {store_address}")
+
+    # Save uploaded file temporarily
+    file_extension = os.path.splitext(palm_image.filename)[1]
+    with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp:
+        palm_image.save(tmp.name)
+        tmp_path = tmp.name
+
+    try:
+        # Step 1: Identify customer from palm scan
+        print("\n🔍 Step 1: Identifying customer from palm scan...")
+        match_found, customer_address, similarity_score = identify_palm(tmp_path)
+
+        if not match_found:
+            print(f"❌ No match found. Similarity score: {similarity_score}")
+            return jsonify({
+                "success": False,
+                "detail": "Palm not recognized. No matching customer found.",
+                "similarity_score": similarity_score
+            }), 404
+
+        print(f"✓ Customer identified: {customer_address}")
+        print(f"  Similarity score: {similarity_score}")
+
+        # Step 2: Get customer's current nonce from contract
+        print("\n🔗 Step 2: Getting customer nonce from smart contract...")
+        customer_nonce = blockchain.get_customer_nonce(customer_address)
+        print(f"✓ Customer nonce: {customer_nonce}")
+
+        # Step 3: Generate receipt hash (for audit trail)
+        import time
+        timestamp = int(time.time())
+        receipt_data = f"{customer_address}{store_address}{amount_usd}{customer_nonce}{timestamp}"
+        receipt_hash = hashlib.sha256(receipt_data.encode()).digest()
+        print(f"\n📝 Step 3: Generated receipt hash")
+        print(f"  Receipt hash: {receipt_hash.hex()[:16]}...")
+
+        # Step 4: Call smart contract to record charge and transfer tokens
+        print(f"\n💳 Step 4: Calling smart contract to record charge...")
+        print(f"  Parameters:")
+        print(f"    Customer:    {customer_address}")
+        print(f"    Store:       {store_address}")
+        print(f"    Amount USD:  ${amount_usd}")
+        print(f"    Amount (6 decimals): {int(amount_usd * 1e6)}")
+        print(f"    Nonce:       {customer_nonce}")
+        print(f"    Receipt:     {receipt_hash.hex()}")
+
+        tx_result = blockchain.record_charge(
+            customer_address=customer_address,
+            store_address=store_address,
+            amount_usd=amount_usd,
+            nonce=customer_nonce,
+            receipt_hash=receipt_hash
+        )
+
+        print(f"✓ Transaction successful!")
+        print(f"  TX Hash: {tx_result['transaction_hash']}")
+        print(f"  Block:   {tx_result['block_number']}")
+        print(f"  Gas:     {tx_result['gas_used']}")
+        print("="*80 + "\n")
+
+        return jsonify({
+            "success": True,
+            "customer_address": customer_address,
+            "store_address": store_address,
+            "amount_usd": amount_usd,
+            "similarity_score": similarity_score,
+            "transaction_hash": tx_result['transaction_hash'],
+            "block_number": tx_result['block_number'],
+            "gas_used": tx_result['gas_used'],
+            "nonce_used": customer_nonce
+        })
+
+    except ValueError as e:
+        print(f"\n❌ Configuration error: {str(e)}")
+        print("="*80 + "\n")
+        return jsonify({"detail": f"Configuration error: {str(e)}"}), 500
+
+    except Exception as e:
+        print(f"\n❌ Error processing scanned palm:")
+        print(f"   Error type: {type(e).__name__}")
+        print(f"   Error message: {str(e)}")
+        import traceback
+        print(f"   Traceback:")
+        traceback.print_exc()
+        print("="*80 + "\n")
+        return jsonify({"detail": f"Error processing payment: {str(e)}"}), 500
+
+    finally:
+        # Clean up temporary file
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 @app.route("/reload", methods=["POST"])
