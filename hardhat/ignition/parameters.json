@@ -1,0 +1,6 @@
+{
+  "PalmPayModule": {
+    "paymentToken": "0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9",
+    "backendVerifier": "0x438E989d5eb3009caB3554D076415C7BBE845a48"
+  }
+}

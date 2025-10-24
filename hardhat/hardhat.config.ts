@@ -5,6 +5,7 @@ import { configVariable } from "hardhat/config";
 
 const config: HardhatUserConfig = {
   plugins: [hardhatToolboxMochaEthersPlugin],
+  defaultNetwork: "sepolia",
   solidity: {
     profiles: {
       default: {
@@ -22,13 +23,9 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
-    hardhatMainnet: {
+    hardhat: {
       type: "edr-simulated",
       chainType: "l1",
-    },
-    hardhatOp: {
-      type: "edr-simulated",
-      chainType: "op",
     },
     sepolia: {
       type: "http",
