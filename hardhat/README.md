@@ -1,16 +1,16 @@
 
 # Pre reqs:
-make sure to fill out .env file (sepolia rpc & privatekey)
+make sure to fill out .env file if you want to deploy the contract.
 
+To deploy:
+```
+rm -rf ignition/deployments/chain-11155111
 
+npx hardhat ignition deploy ignition/modules/PalmPay.ts --network sepolia --parameters ignition/parameters.json
+```
 
-
-
-
-
-
-
-
+It's already on sepolia:
+https://eth-sepolia.blockscout.com/address/0xcBDF0548025C208bAB08831E43514B6F1693F8c5?tab=contract
 
 
 -----
