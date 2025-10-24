@@ -1,0 +1,8 @@
+{
+  "sepolia": {
+    "PYUSD": {
+      "address": "0x3a5B30D74e90E08F0E576CF9f6F2457E44AF38B3",
+      "startBlock": 8926704
+    }
+  }
+}

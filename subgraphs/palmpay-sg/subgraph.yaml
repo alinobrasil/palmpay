@@ -1,0 +1,50 @@
+specVersion: 1.3.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: PalmPay
+    network: sepolia
+    source:
+      address: "0xcBDF0548025C208bAB08831E43514B6F1693F8c5"
+      abi: PalmPay
+      startBlock: 9480756
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - BackendVerifierUpdated
+        - ChargeRecorded
+        - CustomerDeactivated
+        - CustomerRegistered
+        - LimitsUpdated
+        - MaxSpendingLimitCeilingUpdated
+        - OwnershipTransferred
+        - StoreDeactivated
+        - StoreRegistered
+      abis:
+        - name: PalmPay
+          file: ./abis/PalmPay.json
+      eventHandlers:
+        - event: BackendVerifierUpdated(indexed address,indexed address,uint256)
+          handler: handleBackendVerifierUpdated
+        - event: ChargeRecorded(indexed address,indexed address,uint256,uint256,uint256,bytes32)
+          handler: handleChargeRecorded
+        - event: CustomerDeactivated(indexed address,uint256)
+          handler: handleCustomerDeactivated
+        - event: CustomerRegistered(indexed address,uint256)
+          handler: handleCustomerRegistered
+        - event: LimitsUpdated(indexed address,uint256)
+          handler: handleLimitsUpdated
+        - event: MaxSpendingLimitCeilingUpdated(uint256,uint256,uint256)
+          handler: handleMaxSpendingLimitCeilingUpdated
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+        - event: StoreDeactivated(indexed address,uint256)
+          handler: handleStoreDeactivated
+        - event: StoreRegistered(indexed address,string,string,uint256)
+          handler: handleStoreRegistered
+      file: ./src/palm-pay.ts

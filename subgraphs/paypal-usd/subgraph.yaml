@@ -1,0 +1,89 @@
+specVersion: 1.3.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: PYUSD
+    network: sepolia
+    source:
+      address: "0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9"
+      abi: PYUSD
+      startBlock: 9480000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Approval
+        - AuthorizationAlreadyUsed
+        - AuthorizationCanceled
+        - AuthorizationUsed
+        - DefaultAdminDelayChangeCanceled
+        - DefaultAdminDelayChangeScheduled
+        - DefaultAdminTransferCanceled
+        - DefaultAdminTransferScheduled
+        - FreezeAddress
+        - FrozenAddressWiped
+        - Initialized
+        - Pause
+        - RoleAdminChanged
+        - RoleGranted
+        - RoleRevoked
+        - SanctionedAddressListUpdate
+        - SupplyControlSet
+        - SupplyDecreased
+        - SupplyIncreased
+        - Transfer
+        - UnfreezeAddress
+        - Unpause
+      abis:
+        - name: PYUSD
+          file: ./abis/PYUSD.json
+      eventHandlers:
+        - event: Approval(indexed address,indexed address,uint256)
+          handler: handleApproval
+        - event: AuthorizationAlreadyUsed(indexed address,indexed bytes32)
+          handler: handleAuthorizationAlreadyUsed
+        - event: AuthorizationCanceled(indexed address,indexed bytes32)
+          handler: handleAuthorizationCanceled
+        - event: AuthorizationUsed(indexed address,indexed bytes32)
+          handler: handleAuthorizationUsed
+        - event: DefaultAdminDelayChangeCanceled()
+          handler: handleDefaultAdminDelayChangeCanceled
+        - event: DefaultAdminDelayChangeScheduled(uint48,uint48)
+          handler: handleDefaultAdminDelayChangeScheduled
+        - event: DefaultAdminTransferCanceled()
+          handler: handleDefaultAdminTransferCanceled
+        - event: DefaultAdminTransferScheduled(indexed address,uint48)
+          handler: handleDefaultAdminTransferScheduled
+        - event: FreezeAddress(indexed address)
+          handler: handleFreezeAddress
+        - event: FrozenAddressWiped(indexed address)
+          handler: handleFrozenAddressWiped
+        - event: Initialized(uint8)
+          handler: handleInitialized
+        - event: Pause()
+          handler: handlePause
+        - event: RoleAdminChanged(indexed bytes32,indexed bytes32,indexed bytes32)
+          handler: handleRoleAdminChanged
+        - event: RoleGranted(indexed bytes32,indexed address,indexed address)
+          handler: handleRoleGranted
+        - event: RoleRevoked(indexed bytes32,indexed address,indexed address)
+          handler: handleRoleRevoked
+        - event: SanctionedAddressListUpdate(address)
+          handler: handleSanctionedAddressListUpdate
+        - event: SupplyControlSet(address)
+          handler: handleSupplyControlSet
+        - event: SupplyDecreased(indexed address,uint256)
+          handler: handleSupplyDecreased
+        - event: SupplyIncreased(indexed address,uint256)
+          handler: handleSupplyIncreased
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
+        - event: UnfreezeAddress(indexed address)
+          handler: handleUnfreezeAddress
+        - event: Unpause()
+          handler: handleUnpause
+      file: ./src/pyusd.ts

@@ -2,6 +2,8 @@
 # Created by https://www.gitignore.io/api/c,c++,cmake,python,visualstudio,visualstudiocode
 # Edit at https://www.gitignore.io/?templates=c,c++,cmake,python,visualstudio,visualstudiocode
 temp/
+env1/ 
+
 
 **/.DS_Store
 cov_result

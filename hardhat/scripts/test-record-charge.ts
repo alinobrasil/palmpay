@@ -29,8 +29,12 @@ async function main() {
   const customerSigner = new ethers.Wallet(customerPrivateKey, ethers.provider);
   const storeSigner = new ethers.Wallet(storePrivateKey, ethers.provider);
 
+  // lazy testing: Backend verifier uses the same key as customer for testing purposes
+  const backendVerifierSigner = new ethers.Wallet(customerPrivateKey, ethers.provider);
+
   console.log("Customer Address:", customerSigner.address);
   console.log("Store Address:", storeSigner.address);
+  console.log("Backend Verifier Address:", backendVerifierSigner.address);
   console.log();
 
   // Get contract instances
@@ -47,13 +51,15 @@ async function main() {
 
   // Check backend verifier
   const backendVerifier = await PalmPay.backendVerifier();
-  console.log("Backend Verifier:", backendVerifier);
+  console.log("Backend Verifier from Contract:", backendVerifier);
 
-  if (backendVerifier.toLowerCase() !== customerSigner.address.toLowerCase()) {
-    console.warn("⚠️  Warning: Customer is not the backend verifier!");
+  if (backendVerifier.toLowerCase() !== backendVerifierSigner.address.toLowerCase()) {
+    console.warn("⚠️  Warning: Signer is not the backend verifier!");
     console.warn("Expected:", backendVerifier);
-    console.warn("Got:", customerSigner.address);
+    console.warn("Got:", backendVerifierSigner.address);
     console.warn("recordCharge can only be called by the backend verifier\n");
+  } else {
+    console.log("✓ Backend verifier matches");
   }
   console.log();
 
@@ -67,9 +73,9 @@ async function main() {
   }
   console.log();
 
-  // Step 2: Approve PalmPay contract to spend 10 pyUSD
+  // Step 2: Approve PalmPay contract to spend some pyUSD
   console.log("=== Step 2: Approve PalmPay Contract ===");
-  const approveAmount = ethers.parseUnits("10", 6); // 10 pyUSD (6 decimals)
+  const approveAmount = ethers.parseUnits("8", 6); // 8 pyUSD (6 decimals)
 
   const currentAllowance = await PaymentToken.allowance(customerSigner.address, PALMPAY_ADDRESS);
   console.log(`Current Allowance: ${ethers.formatUnits(currentAllowance, 6)} pyUSD`);
@@ -109,7 +115,7 @@ async function main() {
 
   if (!storeInfo.active && storeInfo.name === "") {
     console.log("Registering store...");
-    const registerStoreTx = await PalmPay.connect(storeSigner).registerStore("Test Store", "Test City");
+    const registerStoreTx = await PalmPay.connect(storeSigner).registerStore("Footlocker", "Welland");
     console.log("Store registration transaction hash:", registerStoreTx.hash);
     await registerStoreTx.wait();
     console.log("✓ Store registered");
@@ -128,7 +134,7 @@ async function main() {
 
   // Step 6: Record charge (transfer 2 pyUSD from customer to store)
   console.log("=== Step 5: Record Charge ===");
-  const chargeAmount = ethers.parseUnits("2", 6); // 2 pyUSD
+  const chargeAmount = ethers.parseUnits("0.99", 6); // 2 pyUSD
   const receiptHash = ethers.keccak256(ethers.toUtf8Bytes(`receipt-${Date.now()}`));
 
   console.log(`Charging ${ethers.formatUnits(chargeAmount, 6)} pyUSD from customer to store...`);
@@ -148,7 +154,8 @@ async function main() {
   console.log();
 
   try {
-    const recordChargeTx = await PalmPay.connect(customerSigner).recordCharge(
+    // Backend verifier calls recordCharge (not the customer)
+    const recordChargeTx = await PalmPay.connect(backendVerifierSigner).recordCharge(
       customerSigner.address,
       storeSigner.address,
       chargeAmount,

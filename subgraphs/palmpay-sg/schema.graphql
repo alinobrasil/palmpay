@@ -1,0 +1,88 @@
+type BackendVerifierUpdated @entity(immutable: true) {
+  id: Bytes!
+  oldVerifier: Bytes! # address
+  newVerifier: Bytes! # address
+  timestamp: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ChargeRecorded @entity(immutable: true) {
+  id: Bytes!
+  customer: Bytes! # address
+  store: Bytes! # address
+  amount: BigInt! # uint256
+  nonce: BigInt! # uint256
+  timestamp: BigInt! # uint256
+  receiptHash: Bytes! # bytes32
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type CustomerDeactivated @entity(immutable: true) {
+  id: Bytes!
+  customer: Bytes! # address
+  timestamp: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type CustomerRegistered @entity(immutable: true) {
+  id: Bytes!
+  customer: Bytes! # address
+  timestamp: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type LimitsUpdated @entity(immutable: true) {
+  id: Bytes!
+  customer: Bytes! # address
+  maxTransactionAmount: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type MaxSpendingLimitCeilingUpdated @entity(immutable: true) {
+  id: Bytes!
+  oldCeiling: BigInt! # uint256
+  newCeiling: BigInt! # uint256
+  timestamp: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type OwnershipTransferred @entity(immutable: true) {
+  id: Bytes!
+  previousOwner: Bytes! # address
+  newOwner: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type StoreDeactivated @entity(immutable: true) {
+  id: Bytes!
+  store: Bytes! # address
+  timestamp: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type StoreRegistered @entity(immutable: true) {
+  id: Bytes!
+  store: Bytes! # address
+  name: String! # string
+  city: String! # string
+  timestamp: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
