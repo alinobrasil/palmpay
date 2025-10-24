@@ -1,0 +1,15 @@
+env1
+pypackage/env1
+build
+pypackage/build
+pypackage/dist
+pypackage/edcc.egg-info
+*.pyc
+__pycache__
+.git
+.gitignore
+registered_palms
+temp
+*.md
+.travis.yml
+.codecov.yml

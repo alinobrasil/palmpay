@@ -1,0 +1,8 @@
+{
+  "sepolia": {
+    "PalmPay": {
+      "address": "0xcBDF0548025C208bAB08831E43514B6F1693F8c5",
+      "startBlock": 9480756
+    }
+  }
+}

@@ -15,8 +15,8 @@ from typing import Dict, List
 app = Flask(__name__)
 
 # Configuration
-REGISTERED_PALMS_DIR = os.getenv("REGISTERED_PALMS_DIR", "/app/registered_palms")
-SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.50"))
+REGISTERED_PALMS_DIR = os.getenv("REGISTERED_PALMS_DIR", "./registered_palms")
+SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.15"))
 
 # Create encoder
 config = edcc.EncoderConfig(29, 5, 5, 10)
@@ -137,33 +137,26 @@ def identify_palmprint():
         query_code = encoder.encode_using_file(tmp_path)
 
         # Compare against all registered palmprints
-        best_match_wallet = None
-        best_score = 0.0
-        all_scores = {}
-
+        # Return immediately when a match above threshold is found
         for wallet_address, codes in registered_codes.items():
-            wallet_scores = []
             for code in codes:
                 score = query_code.compare_to(code)
-                wallet_scores.append(score)
 
-            # Use the highest score for this wallet
-            max_score = max(wallet_scores)
-            all_scores[wallet_address] = max_score
+                # If we find a match above threshold, return immediately
+                if score >= SIMILARITY_THRESHOLD:
+                    return jsonify({
+                        "match_found": True,
+                        "wallet_address": wallet_address,
+                        "similarity_score": score,
+                        "threshold": SIMILARITY_THRESHOLD
+                    })
 
-            if max_score > best_score:
-                best_score = max_score
-                best_match_wallet = wallet_address
-
-        # Check if best match exceeds threshold
-        match_found = best_score >= SIMILARITY_THRESHOLD
-
+        # No match found above threshold
         return jsonify({
-            "match_found": match_found,
-            "wallet_address": best_match_wallet if match_found else None,
-            "similarity_score": best_score,
-            "threshold": SIMILARITY_THRESHOLD,
-            "all_scores": all_scores  # For debugging/testing
+            "match_found": False,
+            "wallet_address": None,
+            "similarity_score": 0.0,
+            "threshold": SIMILARITY_THRESHOLD
         })
 
     except Exception as e:
