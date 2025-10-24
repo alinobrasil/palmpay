@@ -1,0 +1,192 @@
+type Approval @entity(immutable: true) {
+  id: Bytes!
+  owner: Bytes! # address
+  spender: Bytes! # address
+  value: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type AuthorizationAlreadyUsed @entity(immutable: true) {
+  id: Bytes!
+  authorizer: Bytes! # address
+  nonce: Bytes! # bytes32
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type AuthorizationCanceled @entity(immutable: true) {
+  id: Bytes!
+  authorizer: Bytes! # address
+  nonce: Bytes! # bytes32
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type AuthorizationUsed @entity(immutable: true) {
+  id: Bytes!
+  authorizer: Bytes! # address
+  nonce: Bytes! # bytes32
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type DefaultAdminDelayChangeCanceled @entity(immutable: true) {
+  id: Bytes!
+
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type DefaultAdminDelayChangeScheduled @entity(immutable: true) {
+  id: Bytes!
+  newDelay: BigInt! # uint48
+  effectSchedule: BigInt! # uint48
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type DefaultAdminTransferCanceled @entity(immutable: true) {
+  id: Bytes!
+
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type DefaultAdminTransferScheduled @entity(immutable: true) {
+  id: Bytes!
+  newAdmin: Bytes! # address
+  acceptSchedule: BigInt! # uint48
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type FreezeAddress @entity(immutable: true) {
+  id: Bytes!
+  addr: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type FrozenAddressWiped @entity(immutable: true) {
+  id: Bytes!
+  addr: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type Initialized @entity(immutable: true) {
+  id: Bytes!
+  version: Int! # uint8
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type Pause @entity(immutable: true) {
+  id: Bytes!
+
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type RoleAdminChanged @entity(immutable: true) {
+  id: Bytes!
+  role: Bytes! # bytes32
+  previousAdminRole: Bytes! # bytes32
+  newAdminRole: Bytes! # bytes32
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type RoleGranted @entity(immutable: true) {
+  id: Bytes!
+  role: Bytes! # bytes32
+  account: Bytes! # address
+  sender: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type RoleRevoked @entity(immutable: true) {
+  id: Bytes!
+  role: Bytes! # bytes32
+  account: Bytes! # address
+  sender: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type SanctionedAddressListUpdate @entity(immutable: true) {
+  id: Bytes!
+  newSanctionedAddress: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type SupplyControlSet @entity(immutable: true) {
+  id: Bytes!
+  supplyControlAddress: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type SupplyDecreased @entity(immutable: true) {
+  id: Bytes!
+  from: Bytes! # address
+  value: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type SupplyIncreased @entity(immutable: true) {
+  id: Bytes!
+  to: Bytes! # address
+  value: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type Transfer @entity(immutable: true) {
+  id: Bytes!
+  from: Bytes! # address
+  to: Bytes! # address
+  value: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type UnfreezeAddress @entity(immutable: true) {
+  id: Bytes!
+  addr: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type Unpause @entity(immutable: true) {
+  id: Bytes!
+
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
