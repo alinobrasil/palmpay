@@ -26,7 +26,7 @@ CORS(app)  # Enable CORS for all routes
 
 # Configuration
 REGISTERED_PALMS_DIR = os.getenv("REGISTERED_PALMS_DIR", "./registered_palms")
-SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.15"))
+SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.1"))
 
 # Create encoder
 config = edcc.EncoderConfig(29, 5, 5, 10)
