@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAccount, useSignMessage, useContractWrite, useContractRead, useWaitForTransaction } from 'wagmi';
-import { parseEther, formatEther } from 'viem';
+import { parseUnits, formatUnits } from 'viem';
 import './Customer.css';
 
 // Placeholder addresses - update these later
@@ -171,7 +171,7 @@ function Customer() {
 
     setLoadingTx(true);
     try {
-      const amount = parseEther(allowanceAmount);
+      const amount = parseUnits(allowanceAmount, 6);
       console.log('Setting allowance of', amount.toString(), 'wei');
       
       let tx;
@@ -204,7 +204,7 @@ function Customer() {
     }
   };
 
-  const formattedAllowance = currentAllowance ? formatEther(currentAllowance) : '0';
+  const formattedAllowance = currentAllowance ? formatUnits(currentAllowance, 6) : '0';
 
   return (
     <div className="customer-view">
