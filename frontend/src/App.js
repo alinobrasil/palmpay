@@ -54,7 +54,7 @@ function ConnectButton() {
 // Separate AppContent component that uses wagmi hooks
 function AppContent() {
   const [currentView, setCurrentView] = useState('home');
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
 
   const handleMenuClick = (view) => {
     if (!isConnected) {
@@ -97,7 +97,7 @@ function AppContent() {
         ) : (
           <>
             {currentView === 'customer' && <Customer />}
-            {currentView === 'store' && <Store />}
+            {currentView === 'store' && <Store walletAddress={address} />}
             {currentView === 'home' && (
               <div className="home-view">
                 <h2>Select an option from the menu</h2>
