@@ -1,7 +1,7 @@
 import { getHistory } from '../src/lib/history.js';
 
 // Test with your customer address
-const CUSTOMER_ADDRESS = '0x438E989d5eb3009caB3554D076415C7BBE845a48';
+const CUSTOMER_ADDRESS = '0x6e0C30dC5c2C5a1F4Cc10475082e29249Fb7F7C7';
 
 console.log('Fetching history for:', CUSTOMER_ADDRESS);
 console.log('='.repeat(80));

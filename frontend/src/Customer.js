@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAccount, useSignMessage, useContractWrite, useContractRead, useWaitForTransaction } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
 import './Customer.css';
+import { getHistory } from './lib/history';
 
 // Placeholder addresses - update these later
 const TOKEN_ADDRESS = '0xcac524bca292aaade2df8a05cc58f0a65b1b3bb9';
@@ -37,6 +38,15 @@ const ERC20_ABI = [
     type: 'function'
   }
 ];
+
+// Add this utility function at the top of the file
+function formatNumber(value) {
+  const num = parseFloat(value);
+  if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+  if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+  if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+  return num.toFixed(2);
+}
 
 function Customer() {
   const { address } = useAccount();
@@ -173,7 +183,7 @@ function Customer() {
     try {
       const amount = parseUnits(allowanceAmount, 6);
       console.log('Setting allowance of', amount.toString(), 'wei');
-      
+
       let tx;
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
@@ -205,6 +215,14 @@ function Customer() {
   };
 
   const formattedAllowance = currentAllowance ? formatUnits(currentAllowance, 6) : '0';
+
+  React.useEffect(() => {
+    if (address) {
+      getHistory(address).then(history => {
+        setTxHistory(history);
+      });
+    }
+  }, [address]);
 
   return (
     <div className="customer-view">
@@ -281,33 +299,66 @@ function Customer() {
           disabled={loadingTx || !allowanceAmount}
           className="btn-primary"
         >
-          {isConfirming ? 'Confirming...' : 
-           loadingTx ? 'Processing...' : 
-           'Set Allowance'}
+          {isConfirming ? 'Confirming...' :
+            loadingTx ? 'Processing...' :
+              'Set Allowance'}
         </button>
       </div>
 
       <div className="section">
         <h3>Transaction History</h3>
         {txHistory.length === 0 ? (
-          <p className="no-transactions">No transactions yet</p>
+          <p className="no-transactions">No transactions found</p>
         ) : (
-          <div className="transaction-list">
-            {txHistory.map((tx) => (
-              <div key={tx.hash} className="transaction-item">
-                <span>{tx.description}</span>
-                <a
-                  href={`https://sepolia.etherscan.io/tx/${tx.hash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  View on Etherscan
-                </a>
-                <span className="tx-time">
-                  {new Date(tx.timestamp).toLocaleString()}
-                </span>
-              </div>
-            ))}
+          <div className="transaction-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date & Time</th>
+                  <th>Transaction</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {txHistory.map((tx) => {
+                  if (!tx || !tx.details) return null;
+
+                  const amountMatch = tx.details.match(/\$?([\d.]+)/);
+                  const amount = amountMatch ? amountMatch[1] : '0';
+                  const date = new Date(tx.timestamp * 1000);
+                  const formattedDate = date.toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                  });
+                  const formattedTime = date.toLocaleTimeString(undefined, {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  });
+
+                  return (
+                    <tr key={tx.blockNumber || Date.now()} className="tx-row">
+                      <td>
+                        <div className="tx-date">
+                          <span className="tx-day">{formattedDate}</span>
+                          <span className="tx-time">{formattedTime}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`tx-badge ${(tx.type || '').toLowerCase()}`}>
+                          {tx.type || 'Unknown'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="transaction-amount">
+                          ${formatNumber(amount)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
