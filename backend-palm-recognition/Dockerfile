@@ -35,6 +35,7 @@ EXPOSE 8000
 # Set environment variables
 ENV REGISTERED_PALMS_DIR=/app/registered_palms
 ENV SIMILARITY_THRESHOLD=0.15
+ENV PYTHONUNBUFFERED=1
 
 # Run the Flask server
-CMD ["python3", "api/server.py"]
+CMD ["python3", "-u", "api/server.py"]

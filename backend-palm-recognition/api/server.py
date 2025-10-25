@@ -4,6 +4,7 @@ Simple Flask server for palmprint identification
 Reads registered palmprints from a folder and compares new images against them
 """
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from eth_account.messages import encode_defunct
 from eth_account import Account
 from dotenv import load_dotenv
@@ -14,11 +15,14 @@ import hashlib
 from pathlib import Path
 from typing import Dict, List
 import blockchain
+import cv2
+import numpy as np
 
 # Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
 
 # Configuration
 REGISTERED_PALMS_DIR = os.getenv("REGISTERED_PALMS_DIR", "./registered_palms")
@@ -31,6 +35,107 @@ encoder = edcc.create_encoder(config)
 # Cache for encoded registered palmprints
 # Format: { "wallet_address": [code1, code2, ...] }
 registered_codes: Dict[str, List] = {}
+
+
+def preprocess_palm_image(image_path: str) -> str:
+    """
+    Preprocess palm image to improve recognition accuracy:
+    1. Detect skin region using color thresholding
+    2. Find the largest contour (palm)
+    3. Crop to palm region with padding
+    4. Resize to standard dimensions
+
+    Args:
+        image_path: Path to the input palm image
+
+    Returns:
+        Path to the preprocessed image (temporary file)
+    """
+    try:
+        # Read image
+        img = cv2.imread(image_path)
+        if img is None:
+            print(f"  ⚠️  Failed to read image, returning original: {image_path}")
+            return image_path
+
+        original_height, original_width = img.shape[:2]
+        print(f"  📐 Original image size: {original_width}x{original_height}")
+
+        # Convert to HSV for better skin detection
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+        # Define skin color range in HSV
+        # These values work well for most skin tones
+        lower_skin = np.array([0, 20, 70], dtype=np.uint8)
+        upper_skin = np.array([20, 255, 255], dtype=np.uint8)
+
+        # Create mask for skin pixels
+        mask = cv2.inRange(hsv, lower_skin, upper_skin)
+
+        # Apply morphological operations to clean up the mask
+        kernel = np.ones((5, 5), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+
+        # Find contours
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        if not contours:
+            print(f"  ⚠️  No palm detected, returning original image")
+            return image_path
+
+        # Find the largest contour (assumed to be the palm)
+        largest_contour = max(contours, key=cv2.contourArea)
+        contour_area = cv2.contourArea(largest_contour)
+
+        # Get bounding rectangle
+        x, y, w, h = cv2.boundingRect(largest_contour)
+
+        print(f"  ✂️  Detected palm region: x={x}, y={y}, w={w}, h={h}, area={contour_area:.0f}")
+
+        # Add padding around the detected region (20% on each side)
+        padding_x = int(w * 0.2)
+        padding_y = int(h * 0.2)
+
+        x_start = max(0, x - padding_x)
+        y_start = max(0, y - padding_y)
+        x_end = min(original_width, x + w + padding_x)
+        y_end = min(original_height, y + h + padding_y)
+
+        # Crop to palm region
+        cropped = img[y_start:y_end, x_start:x_end]
+
+        if cropped.size == 0:
+            print(f"  ⚠️  Cropping failed, returning original image")
+            return image_path
+
+        # Resize to standard size (maintaining aspect ratio)
+        target_size = 400  # Standard size for palm images
+        h_crop, w_crop = cropped.shape[:2]
+
+        if h_crop > w_crop:
+            new_h = target_size
+            new_w = int((target_size / h_crop) * w_crop)
+        else:
+            new_w = target_size
+            new_h = int((target_size / w_crop) * h_crop)
+
+        resized = cv2.resize(cropped, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+
+        print(f"  ✅ Preprocessed to: {new_w}x{new_h}")
+
+        # Save to temporary file
+        file_extension = os.path.splitext(image_path)[1]
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp:
+            cv2.imwrite(tmp.name, resized)
+            preprocessed_path = tmp.name
+
+        return preprocessed_path
+
+    except Exception as e:
+        print(f"  ⚠️  Error during preprocessing: {e}")
+        print(f"  Returning original image")
+        return image_path
 
 
 def verify_signature(message: str, signature: str, claimed_address: str) -> bool:
@@ -88,11 +193,21 @@ def load_registered_palmprints():
         for image_file in wallet_dir.iterdir():
             if image_file.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp']:
                 try:
-                    code = encoder.encode_using_file(str(image_file))
+                    # Preprocess the image before encoding
+                    print(f"  Processing {image_file.name}...")
+                    preprocessed_path = preprocess_palm_image(str(image_file))
+
+                    # Encode the preprocessed image
+                    code = encoder.encode_using_file(preprocessed_path)
                     codes.append(code)
-                    print(f"Loaded {image_file.name} for wallet {wallet_address}")
+
+                    # Clean up temporary preprocessed file if it's different from original
+                    if preprocessed_path != str(image_file) and os.path.exists(preprocessed_path):
+                        os.remove(preprocessed_path)
+
+                    print(f"  ✅ Loaded {image_file.name} for wallet {wallet_address}")
                 except Exception as e:
-                    print(f"Error encoding {image_file}: {e}")
+                    print(f"  ❌ Error encoding {image_file}: {e}")
 
         if codes:
             registered_codes[wallet_address] = codes
@@ -116,21 +231,49 @@ def identify_palm(image_path: str) -> tuple[bool, str | None, float]:
     if not registered_codes:
         raise ValueError("No registered palmprints available")
 
-    # Encode the uploaded palmprint
-    query_code = encoder.encode_using_file(image_path)
+    # Preprocess and encode the uploaded palmprint
+    print(f"  Preprocessing query image: {image_path}")
+    preprocessed_path = preprocess_palm_image(image_path)
+
+    print(f"  Encoding preprocessed image...")
+    query_code = encoder.encode_using_file(preprocessed_path)
+    print(f"  ✅ Query code encoded successfully")
+
+    # Clean up temporary preprocessed file if different from original
+    cleanup_preprocessed = (preprocessed_path != image_path and os.path.exists(preprocessed_path))
+
+    # Track best match
+    best_score = 0.0
+    best_wallet = None
 
     # Compare against all registered palmprints
-    # Return immediately when a match above threshold is found
+    print(f"  Comparing against {len(registered_codes)} registered wallets...")
     for wallet_address, codes in registered_codes.items():
-        for code in codes:
+        print(f"    Checking wallet {wallet_address} ({len(codes)} registered palms)")
+        for idx, code in enumerate(codes):
             score = query_code.compare_to(code)
+            print(f"      Palm {idx+1}: similarity = {score:.4f} {'✓ MATCH!' if score >= SIMILARITY_THRESHOLD else ''}")
+
+            # Track best score
+            if score > best_score:
+                best_score = score
+                best_wallet = wallet_address
 
             # If we find a match above threshold, return immediately
             if score >= SIMILARITY_THRESHOLD:
+                # Clean up before returning
+                if cleanup_preprocessed:
+                    os.remove(preprocessed_path)
                 return (True, wallet_address, score)
 
     # No match found above threshold
-    return (False, None, 0.0)
+    print(f"  Best match: {best_wallet} with score {best_score:.4f} (threshold: {SIMILARITY_THRESHOLD})")
+
+    # Clean up before returning
+    if cleanup_preprocessed:
+        os.remove(preprocessed_path)
+
+    return (False, best_wallet, best_score)
 
 
 @app.route("/", methods=["GET"])
@@ -249,17 +392,39 @@ def register_palmprint():
     filename = f"palm{next_number}{file_extension}"
     file_path = wallet_dir / filename
 
-    # Save the uploaded image
+    # Save and process the uploaded image
     try:
-        palm_image.save(str(file_path))
+        # Save to temporary location first
+        temp_path = str(file_path) + ".tmp"
+        palm_image.save(temp_path)
 
-        # Encode the new palmprint
+        print(f"  Processing uploaded image for registration...")
+        # Preprocess the image
+        preprocessed_path = preprocess_palm_image(temp_path)
+
+        # Save the preprocessed image as the final registered image
+        if preprocessed_path != temp_path:
+            # Move preprocessed to final location
+            import shutil
+            shutil.move(preprocessed_path, str(file_path))
+        else:
+            # If preprocessing didn't create a new file, just rename temp
+            os.rename(temp_path, str(file_path))
+
+        # Clean up temp file if it still exists
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+        print(f"  Encoding registered palmprint...")
+        # Encode the preprocessed palmprint
         code = encoder.encode_using_file(str(file_path))
 
         # Update in-memory cache
         if wallet_address not in registered_codes:
             registered_codes[wallet_address] = []
         registered_codes[wallet_address].append(code)
+
+        print(f"  ✅ Successfully registered {filename} for wallet {wallet_address}")
 
         return jsonify({
             "status": "registered",
@@ -269,9 +434,12 @@ def register_palmprint():
         })
 
     except Exception as e:
-        # Clean up the file if encoding failed
+        # Clean up files if encoding failed
         if file_path.exists():
             os.remove(file_path)
+        temp_path = str(file_path) + ".tmp"
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
         return jsonify({"detail": f"Error registering palmprint: {str(e)}"}), 500
 
 
@@ -445,6 +613,161 @@ def reload_palmprints():
         "registered_wallets": len(registered_codes),
         "total_palmprints": sum(len(codes) for codes in registered_codes.values())
     })
+
+
+@app.route("/debug_preprocess", methods=["POST"])
+def debug_preprocess():
+    """
+    Debug endpoint to visualize preprocessing results.
+    Saves original, mask, and preprocessed images to debug_output folder.
+
+    Example usage:
+      curl -X POST -F "palm_image=@test_palm.jpg" http://localhost:8000/debug_preprocess
+    """
+    # Get uploaded file
+    if 'palm_image' not in request.files:
+        return jsonify({"detail": "palm_image file is required"}), 400
+
+    palm_image = request.files['palm_image']
+    if palm_image.filename == '':
+        return jsonify({"detail": "No file selected"}), 400
+
+    # Save uploaded file temporarily
+    file_extension = os.path.splitext(palm_image.filename)[1]
+    with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp:
+        palm_image.save(tmp.name)
+        tmp_path = tmp.name
+
+    try:
+        # Create debug output directory
+        debug_dir = Path("./debug_output")
+        debug_dir.mkdir(exist_ok=True)
+
+        # Read original image
+        img = cv2.imread(tmp_path)
+        if img is None:
+            return jsonify({"detail": "Failed to read image"}), 400
+
+        original_height, original_width = img.shape[:2]
+
+        # Save original
+        original_path = debug_dir / f"1_original{file_extension}"
+        cv2.imwrite(str(original_path), img)
+
+        # Convert to HSV and create mask
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        lower_skin = np.array([0, 20, 70], dtype=np.uint8)
+        upper_skin = np.array([20, 255, 255], dtype=np.uint8)
+        mask = cv2.inRange(hsv, lower_skin, upper_skin)
+
+        # Save mask
+        mask_path = debug_dir / f"2_skin_mask{file_extension}"
+        cv2.imwrite(str(mask_path), mask)
+
+        # Apply morphological operations
+        kernel = np.ones((5, 5), np.uint8)
+        mask_cleaned = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+        mask_cleaned = cv2.morphologyEx(mask_cleaned, cv2.MORPH_OPEN, kernel, iterations=1)
+
+        # Save cleaned mask
+        mask_cleaned_path = debug_dir / f"3_cleaned_mask{file_extension}"
+        cv2.imwrite(str(mask_cleaned_path), mask_cleaned)
+
+        # Find contours
+        contours, _ = cv2.findContours(mask_cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        if not contours:
+            return jsonify({
+                "detail": "No palm detected",
+                "original_size": f"{original_width}x{original_height}",
+                "files_saved": [str(original_path), str(mask_path), str(mask_cleaned_path)]
+            }), 200
+
+        # Draw all contours on a copy
+        img_contours = img.copy()
+        cv2.drawContours(img_contours, contours, -1, (0, 255, 0), 3)
+        contours_path = debug_dir / f"4_all_contours{file_extension}"
+        cv2.imwrite(str(contours_path), img_contours)
+
+        # Find largest contour
+        largest_contour = max(contours, key=cv2.contourArea)
+        contour_area = cv2.contourArea(largest_contour)
+        x, y, w, h = cv2.boundingRect(largest_contour)
+
+        # Draw bounding box on original
+        img_bbox = img.copy()
+        cv2.rectangle(img_bbox, (x, y), (x+w, y+h), (0, 0, 255), 3)
+        bbox_path = debug_dir / f"5_bounding_box{file_extension}"
+        cv2.imwrite(str(bbox_path), img_bbox)
+
+        # Add padding
+        padding_x = int(w * 0.2)
+        padding_y = int(h * 0.2)
+        x_start = max(0, x - padding_x)
+        y_start = max(0, y - padding_y)
+        x_end = min(original_width, x + w + padding_x)
+        y_end = min(original_height, y + h + padding_y)
+
+        # Show padded region
+        img_padded = img.copy()
+        cv2.rectangle(img_padded, (x_start, y_start), (x_end, y_end), (255, 0, 0), 3)
+        padded_path = debug_dir / f"6_padded_region{file_extension}"
+        cv2.imwrite(str(padded_path), img_padded)
+
+        # Crop and resize
+        cropped = img[y_start:y_end, x_start:x_end]
+        target_size = 400
+        h_crop, w_crop = cropped.shape[:2]
+
+        if h_crop > w_crop:
+            new_h = target_size
+            new_w = int((target_size / h_crop) * w_crop)
+        else:
+            new_w = target_size
+            new_h = int((target_size / w_crop) * h_crop)
+
+        resized = cv2.resize(cropped, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+
+        # Save final preprocessed image
+        preprocessed_path = debug_dir / f"7_preprocessed{file_extension}"
+        cv2.imwrite(str(preprocessed_path), resized)
+
+        return jsonify({
+            "status": "success",
+            "original_size": f"{original_width}x{original_height}",
+            "detected_region": {
+                "x": int(x),
+                "y": int(y),
+                "width": int(w),
+                "height": int(h),
+                "area": int(contour_area)
+            },
+            "padded_region": {
+                "x_start": int(x_start),
+                "y_start": int(y_start),
+                "x_end": int(x_end),
+                "y_end": int(y_end)
+            },
+            "final_size": f"{new_w}x{new_h}",
+            "files_saved": {
+                "1_original": str(original_path),
+                "2_skin_mask": str(mask_path),
+                "3_cleaned_mask": str(mask_cleaned_path),
+                "4_all_contours": str(contours_path),
+                "5_bounding_box": str(bbox_path),
+                "6_padded_region": str(padded_path),
+                "7_preprocessed": str(preprocessed_path)
+            },
+            "note": "Check the debug_output folder to see all stages of preprocessing"
+        })
+
+    except Exception as e:
+        return jsonify({"detail": f"Error during debug preprocessing: {str(e)}"}), 500
+
+    finally:
+        # Clean up temporary file
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 if __name__ == "__main__":
