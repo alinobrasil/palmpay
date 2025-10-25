@@ -87,12 +87,15 @@ function Store({ walletAddress }) {
   };
 
   const startCamera = async () => {
+    console.log('startCamera called');
     try {
       // Check if camera API is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('Camera API not available');
         throw new Error('Camera not supported in this browser. Please open this page in Safari or Chrome.');
       }
 
+      console.log('Camera API available, requesting permissions...');
       setShowCamera(true); // Show modal first
 
       // Small delay to ensure DOM is ready
@@ -106,7 +109,9 @@ function Store({ walletAddress }) {
         }
       };
 
+      console.log('Requesting camera with constraints:', constraints);
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('Camera stream obtained:', stream);
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -122,10 +127,28 @@ function Store({ walletAddress }) {
       }
 
     } catch (err) {
-      console.error('Camera error:', err);
+      console.error('Camera error details:', err);
+      console.error('Error name:', err.name);
+      console.error('Error message:', err.message);
       setShowCamera(false);
       setIsStreamReady(false);
-      alert(`Camera error: ${getErrorMessage(err)}`);
+
+      let errorMsg = getErrorMessage(err);
+
+      // Provide specific error messages
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        errorMsg = 'Camera permission denied. Please allow camera access in your browser settings.';
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        errorMsg = 'No camera found on this device.';
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        errorMsg = 'Camera is already in use by another application.';
+      } else if (err.name === 'OverconstrainedError') {
+        errorMsg = 'Camera does not support the requested settings.';
+      } else if (err.name === 'NotSupportedError') {
+        errorMsg = 'Camera access requires HTTPS. Please use https:// instead of http://';
+      }
+
+      alert(`Camera error: ${errorMsg}`);
     }
   };
 

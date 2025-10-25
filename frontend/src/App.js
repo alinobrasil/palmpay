@@ -135,6 +135,8 @@ function App() {
         projectId={WALLETCONNECT_PROJECT_ID}
         ethereumClient={ethereumClient}
         themeMode="light"
+        enableExplorer={false}
+        defaultChain={sepolia}
       />
     </ErrorBoundary>
   );
