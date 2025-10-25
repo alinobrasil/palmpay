@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAccount, useSignMessage, useContractWrite, useContractRead } from 'wagmi';
+import { useAccount, useSignMessage, useContractWrite, useContractRead, useWaitForTransaction } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
 import './Customer.css';
 
@@ -8,13 +8,34 @@ const TOKEN_ADDRESS = '0xcac524bca292aaade2df8a05cc58f0a65b1b3bb9';
 const SPENDER_ADDRESS = '0xcBDF0548025C208bAB08831E43514B6F1693F8c5';
 
 // Placeholder API URL - update this later
-const API_BASE_URL = 'http://192.168.50.158:8000';
+const API_BASE_URL = 'https://palmpay-production.up.railway.app';
 
 // ERC20 Token ABI (only approve function)
 const ERC20_ABI = [
-  'function approve(address spender, uint256 amount) public returns (bool)',
-  'function allowance(address owner, address spender) view returns (uint256)',
-  'event Approval(address indexed owner, address indexed spender, uint256 value)'
+  {
+    constant: false,
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint256' }
+    ],
+    name: 'approve',
+    outputs: [{ name: '', type: 'bool' }],
+    payable: false,
+    stateMutability: 'nonpayable',
+    type: 'function'
+  },
+  {
+    constant: true,
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' }
+    ],
+    name: 'allowance',
+    outputs: [{ name: '', type: 'uint256' }],
+    payable: false,
+    stateMutability: 'view',
+    type: 'function'
+  }
 ];
 
 function Customer() {
@@ -23,10 +44,11 @@ function Customer() {
   const [palmImage, setPalmImage] = useState(null);
   const [allowanceAmount, setAllowanceAmount] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pendingTx, setPendingTx] = useState(null);
+  const [txHistory, setTxHistory] = useState([]);
   const [loadingTx, setLoadingTx] = useState(false);
-  const [transactions, setTransactions] = useState([]);
 
-  const { data: currentAllowance } = useContractRead({
+  const { data: currentAllowance, refetch: refetchAllowance } = useContractRead({
     address: TOKEN_ADDRESS,
     abi: ERC20_ABI,
     functionName: 'allowance',
@@ -34,10 +56,24 @@ function Customer() {
     watch: true,
   });
 
-  const { write: approveTokens } = useContractWrite({
+  const { writeAsync: approveTokens } = useContractWrite({
     address: TOKEN_ADDRESS,
     abi: ERC20_ABI,
     functionName: 'approve',
+    chainId: 11155111,
+    onError: (error) => {
+      console.error('Contract write error:', error);
+    },
+  });
+
+  const { isLoading: isConfirming } = useWaitForTransaction({
+    hash: pendingTx,
+    onSuccess: () => {
+      refetchAllowance();
+      setPendingTx(null);
+      setLoadingTx(false);
+      alert('Transaction confirmed!');
+    },
   });
 
   const handleImageChange = (e) => {
@@ -118,20 +154,53 @@ function Customer() {
     }
   };
 
+  const addTransaction = (hash, description) => {
+    const newTx = {
+      hash,
+      description,
+      timestamp: new Date().toISOString(),
+    };
+    setTxHistory(prev => [newTx, ...prev]);
+  };
+
   const setAllowance = async () => {
     if (!allowanceAmount || allowanceAmount <= 0) {
       alert('Please enter a valid allowance amount');
       return;
     }
 
+    setLoadingTx(true);
     try {
-      await approveTokens({
-        args: [SPENDER_ADDRESS, parseEther(allowanceAmount)],
-      });
+      const amount = parseEther(allowanceAmount);
+      console.log('Setting allowance of', amount.toString(), 'wei');
+      
+      let tx;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          tx = await approveTokens({
+            args: [SPENDER_ADDRESS, amount],
+            gas: BigInt(100000), // Set explicit gas limit
+          });
+          break;
+        } catch (err) {
+          if (attempt === 2) throw err;
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+
+      if (!tx?.hash) {
+        throw new Error('No transaction hash received');
+      }
+
+      setPendingTx(tx.hash);
+      addTransaction(tx.hash, `Approve ${allowanceAmount} tokens`);
+      alert('Transaction submitted! Waiting for confirmation...');
       setAllowanceAmount('');
+
     } catch (error) {
       console.error('Error setting allowance:', error);
       alert(`Failed to set allowance: ${error.message}`);
+      setLoadingTx(false);
     }
   };
 
@@ -188,6 +257,13 @@ function Customer() {
         <div className="form-group">
           <p className="current-allowance">
             Current Allowance: {formattedAllowance} tokens
+            <button
+              onClick={() => refetchAllowance()}
+              className="btn-refresh"
+              disabled={loadingTx}
+            >
+              🔄 Refresh
+            </button>
           </p>
           <label>Allowance Amount (tokens):</label>
           <input
@@ -195,22 +271,45 @@ function Customer() {
             value={allowanceAmount}
             onChange={(e) => setAllowanceAmount(e.target.value)}
             placeholder="Enter amount"
-            disabled={loading}
+            disabled={loadingTx}
             min="0"
             step="0.01"
           />
         </div>
         <button
           onClick={setAllowance}
-          disabled={loading || !allowanceAmount}
+          disabled={loadingTx || !allowanceAmount}
           className="btn-primary"
         >
-          {loading ? 'Processing...' : 'Set Allowance'}
+          {isConfirming ? 'Confirming...' : 
+           loadingTx ? 'Processing...' : 
+           'Set Allowance'}
         </button>
-        <p className="info-text">
-          Token: {TOKEN_ADDRESS}<br />
-          Spender: {SPENDER_ADDRESS}
-        </p>
+      </div>
+
+      <div className="section">
+        <h3>Transaction History</h3>
+        {txHistory.length === 0 ? (
+          <p className="no-transactions">No transactions yet</p>
+        ) : (
+          <div className="transaction-list">
+            {txHistory.map((tx) => (
+              <div key={tx.hash} className="transaction-item">
+                <span>{tx.description}</span>
+                <a
+                  href={`https://sepolia.etherscan.io/tx/${tx.hash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View on Etherscan
+                </a>
+                <span className="tx-time">
+                  {new Date(tx.timestamp).toLocaleString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
