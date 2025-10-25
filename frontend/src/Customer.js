@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Webcam from 'react-webcam';
-import { ethers } from 'ethers';
+import React, { useState } from 'react';
+import { useAccount, useSignMessage, useContractWrite, useContractRead } from 'wagmi';
+import { parseEther, formatEther } from 'viem';
 import './Customer.css';
 
 // Placeholder addresses - update these later
 const TOKEN_ADDRESS = '0xcac524bca292aaade2df8a05cc58f0a65b1b3bb9';
-const SPENDER_ADDRESS = '0x438E989d5eb3009caB3554D076415C7BBE845a48';
+const SPENDER_ADDRESS = '0xcBDF0548025C208bAB08831E43514B6F1693F8c5';
 
 // Placeholder API URL - update this later
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'http://192.168.50.158:8000';
 
 // ERC20 Token ABI (only approve function)
 const ERC20_ABI = [
@@ -17,78 +17,28 @@ const ERC20_ABI = [
   'event Approval(address indexed owner, address indexed spender, uint256 value)'
 ];
 
-function Customer({ walletAddress, signer }) {
+function Customer() {
+  const { address } = useAccount();
+  const { signMessageAsync } = useSignMessage();
   const [palmImage, setPalmImage] = useState(null);
   const [allowanceAmount, setAllowanceAmount] = useState('');
   const [loading, setLoading] = useState(false);
-  const [currentAllowance, setCurrentAllowance] = useState('0');
-  const [transactions, setTransactions] = useState([]);
   const [loadingTx, setLoadingTx] = useState(false);
-  const [showCamera, setShowCamera] = useState(false);
-  const webcamRef = useRef(null);
+  const [transactions, setTransactions] = useState([]);
 
-  const videoConstraints = {
-    width: 720,
-    height: 720,
-    facingMode: "user"
-  };
+  const { data: currentAllowance } = useContractRead({
+    address: TOKEN_ADDRESS,
+    abi: ERC20_ABI,
+    functionName: 'allowance',
+    args: [address, SPENDER_ADDRESS],
+    watch: true,
+  });
 
-  const capture = async () => {
-    const imageSrc = webcamRef.current.getScreenshot();
-    // Convert base64 to blob
-    const blob = await fetch(imageSrc).then(r => r.blob());
-    const imageFile = new File([blob], "palm.jpg", { type: "image/jpeg" });
-    setPalmImage(imageFile);
-    setShowCamera(false);
-  };
-
-  const fetchTransactionHistory = async () => {
-    setLoadingTx(true);
-    try {
-      // Create token contract instance
-      const tokenContract = new ethers.Contract(TOKEN_ADDRESS, ERC20_ABI, signer);
-
-      // Get past Approval events
-      const filter = tokenContract.filters.Approval(walletAddress, SPENDER_ADDRESS);
-      const events = await tokenContract.queryFilter(filter, -1000); // Last 1000 blocks
-
-      const txHistory = await Promise.all(events.map(async (event) => {
-        const block = await event.getBlock();
-        return {
-          txHash: event.transactionHash,
-          amount: ethers.formatUnits(event.args.value, 18),
-          timestamp: new Date(block.timestamp * 1000).toLocaleString(),
-        };
-      }));
-
-      setTransactions(txHistory);
-    } catch (error) {
-      console.error('Error fetching transaction history:', error);
-      alert('Failed to fetch transaction history');
-    } finally {
-      setLoadingTx(false);
-    }
-  };
-
-  const checkAllowance = async () => {
-    try {
-      const tokenContract = new ethers.Contract(TOKEN_ADDRESS, ERC20_ABI, signer);
-      const allowance = await tokenContract.allowance(walletAddress, SPENDER_ADDRESS);
-      const formattedAllowance = ethers.formatUnits(allowance, 18);
-      setCurrentAllowance(formattedAllowance);
-    } catch (error) {
-      console.error('Error checking allowance:', error);
-      alert('Failed to check allowance');
-    }
-  };
-
-  // Add useEffect to check allowance on component mount and after setting new allowance. And to fetch transaction history
-  useEffect(() => {
-    if (signer && walletAddress) {
-      checkAllowance();
-      fetchTransactionHistory();
-    }
-  }, [signer, walletAddress]);
+  const { write: approveTokens } = useContractWrite({
+    address: TOKEN_ADDRESS,
+    abi: ERC20_ABI,
+    functionName: 'approve',
+  });
 
   const handleImageChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -97,46 +47,72 @@ function Customer({ walletAddress, signer }) {
   };
 
   const registerPalm = async () => {
-    if (!palmImage) {
-      alert('Please select a palm image first');
+    if (!palmImage || !address) {
+      alert('Please select a palm image and connect your wallet first');
       return;
     }
 
     setLoading(true);
+    console.log('Starting palm registration...');
+    console.log('Wallet address:', address);
+    console.log('Palm image:', palmImage);
 
     try {
-      // Create message to sign
-      const timestamp = Date.now();
-      const message = `Register palmprint for ${walletAddress}\nTimestamp: ${timestamp}`;
+      const timestamp = Date.now().toString();
+      const messageToSign = `Register palmprint:${address.toLowerCase()}:${timestamp}`;
+      console.log('About to sign message:', messageToSign);
 
-      // Sign the message
-      const signature = await signer.signMessage(message);
+      const signature = await signMessageAsync({
+        message: messageToSign,
+      });
+      console.log('Received signature:', signature);
 
-      // Prepare form data
       const formData = new FormData();
-      formData.append('wallet_address', walletAddress);
-      formData.append('message', message);
+      formData.append('wallet_address', address.toLowerCase());
+      formData.append('message', messageToSign);
       formData.append('signature', signature);
       formData.append('palm_image', palmImage);
 
-      // Call API
-      const response = await fetch(`${API_BASE_URL}/register`, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Registration failed');
+      console.log('FormData contents:');
+      for (let pair of formData.entries()) {
+        console.log(pair[0], ':', typeof pair[1], pair[1]);
       }
 
-      const result = await response.json();
-      alert(`Palm registered successfully!\nFilename: ${result.filename}\nTotal palms: ${result.total_palms_for_wallet}`);
+      const endpoint = `${API_BASE_URL}/register`;
+      console.log('Sending request to:', endpoint);
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Accept': 'application/json',
+        },
+        mode: 'cors', // Changed from 'no-cors' to 'cors'
+        credentials: 'omit', // Changed from 'include' to 'omit'
+      });
+
+      console.log('Raw response:', response);
+      const responseText = await response.text();
+      console.log('Response text:', responseText);
+
+      if (!response.ok) {
+        console.error('Error response:', responseText);
+        throw new Error(responseText || 'Registration failed');
+      }
+
+      const result = responseText ? JSON.parse(responseText) : {};
+      console.log('Parsed result:', result);
+
+      alert(`Palm registered successfully!\nFilename: ${result.filename || 'unknown'}\nTotal palms: ${result.total_palms_for_wallet || 0}`);
       setPalmImage(null);
 
     } catch (error) {
       console.error('Error registering palm:', error);
-      alert(`Failed to register palm: ${error.message}`);
+      if (error.message === 'Failed to fetch') {
+        alert('Cannot connect to the server. Please check if the backend is running and accessible.');
+      } else {
+        alert(`Failed to register palm: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -148,34 +124,18 @@ function Customer({ walletAddress, signer }) {
       return;
     }
 
-    setLoading(true);
-
     try {
-      // Create token contract instance
-      const tokenContract = new ethers.Contract(TOKEN_ADDRESS, ERC20_ABI, signer);
-
-      // Convert amount to token units (assuming 18 decimals)
-      const amount = ethers.parseUnits(allowanceAmount, 18);
-
-      // Call approve function
-      const tx = await tokenContract.approve(SPENDER_ADDRESS, amount);
-      alert('Transaction submitted! Waiting for confirmation...');
-
-      // Wait for transaction to be mined
-      await tx.wait();
-      await checkAllowance();
-      await fetchTransactionHistory();
-
-      alert(`Allowance set successfully!\nAmount: ${allowanceAmount}\nTransaction: ${tx.hash}`);
+      await approveTokens({
+        args: [SPENDER_ADDRESS, parseEther(allowanceAmount)],
+      });
       setAllowanceAmount('');
-
     } catch (error) {
       console.error('Error setting allowance:', error);
       alert(`Failed to set allowance: ${error.message}`);
-    } finally {
-      setLoading(false);
     }
   };
+
+  const formattedAllowance = currentAllowance ? formatEther(currentAllowance) : '0';
 
   return (
     <div className="customer-view">
@@ -185,16 +145,8 @@ function Customer({ walletAddress, signer }) {
         <h3>Register Palm</h3>
         <div className="form-group">
           <div className="capture-options">
-            <button
-              onClick={() => setShowCamera(!showCamera)}
-              className="btn-secondary"
-              disabled={loading}
-            >
-              {showCamera ? 'Close Camera' : 'Open Camera'}
-            </button>
-            <div className="or-divider">OR</div>
             <label className="file-upload-btn">
-              Upload Image
+              <span> Take Photo or Choose Image</span>
               <input
                 type="file"
                 accept="image/*"
@@ -204,25 +156,6 @@ function Customer({ walletAddress, signer }) {
               />
             </label>
           </div>
-
-          {showCamera && (
-            <div className="camera-container">
-              <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                videoConstraints={videoConstraints}
-                className="webcam"
-              />
-              <button
-                onClick={capture}
-                className="btn-capture"
-                disabled={loading}
-              >
-                📸 Capture
-              </button>
-            </div>
-          )}
 
           {palmImage && (
             <div className="preview-container">
@@ -254,14 +187,7 @@ function Customer({ walletAddress, signer }) {
         <h3>Set Allowance</h3>
         <div className="form-group">
           <p className="current-allowance">
-            Current Allowance: {currentAllowance} tokens
-            <button
-              onClick={checkAllowance}
-              className="btn-refresh"
-              disabled={loading}
-            >
-              🔄 Refresh
-            </button>
+            Current Allowance: {formattedAllowance} tokens
           </p>
           <label>Allowance Amount (tokens):</label>
           <input
@@ -286,52 +212,7 @@ function Customer({ walletAddress, signer }) {
           Spender: {SPENDER_ADDRESS}
         </p>
       </div>
-
-      <div className="section">
-        <h3>Transaction History</h3>
-        <div className="transaction-list">
-          <button
-            onClick={fetchTransactionHistory}
-            className="btn-refresh"
-            disabled={loadingTx}
-          >
-            🔄 Refresh History
-          </button>
-          {loadingTx ? (
-            <p>Loading transactions...</p>
-          ) : transactions.length > 0 ? (
-            <table className="tx-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Amount</th>
-                  <th>Transaction</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((tx) => (
-                  <tr key={tx.txHash}>
-                    <td>{tx.timestamp}</td>
-                    <td>{tx.amount} tokens</td>
-                    <td>
-                      <a
-                        href={`https://sepolia.etherscan.io/tx/${tx.txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {tx.txHash.slice(0, 6)}...{tx.txHash.slice(-4)}
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p>No transactions found</p>
-          )}
-        </div>
-      </div>
-    </div >
+    </div>
   );
 }
 

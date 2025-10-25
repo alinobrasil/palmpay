@@ -1,127 +1,67 @@
-import React, { useState, useEffect } from 'react';
-import { ethers } from 'ethers';
+import React, { useState } from 'react';
+import { WagmiConfig, createConfig, configureChains } from 'wagmi';
+import { sepolia } from 'wagmi/chains';
+import { publicProvider } from 'wagmi/providers/public';
+import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
+import { useAccount, useConnect, useDisconnect } from 'wagmi';
 import Customer from './Customer';
 import Store from './Store';
 import './App.css';
 
-function App() {
-  const [walletAddress, setWalletAddress] = useState(null);
-  const [provider, setProvider] = useState(null);
-  const [signer, setSigner] = useState(null);
+// Configure chains & providers
+const { chains, publicClient } = configureChains(
+  [sepolia],
+  [publicProvider()]
+);
+
+// Set up wagmi config
+const wagmiConfig = createConfig({
+  autoConnect: true,
+  connectors: [
+    new MetaMaskConnector({ chains })
+  ],
+  publicClient,
+});
+
+// Separate ConnectButton component
+function ConnectButton() {
+  const { address } = useAccount();
+  const { connect } = useConnect({
+    connector: new MetaMaskConnector({ chains }),
+  });
+  const { disconnect } = useDisconnect();
+
+  if (address) {
+    return (
+      <>
+        <span className="wallet-address">
+          {address.slice(0, 6)}...{address.slice(-4)}
+        </span>
+        <button onClick={() => disconnect()} className="btn-disconnect">
+          Disconnect
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <button onClick={() => connect()} className="btn-connect">
+      Connect MetaMask
+    </button>
+  );
+}
+
+// Separate AppContent component that uses wagmi hooks
+function AppContent() {
   const [currentView, setCurrentView] = useState('home');
-
-  // Check if wallet is already connected on load
-  useEffect(() => {
-    checkIfWalletIsConnected();
-  }, []);
-
-  const checkIfWalletIsConnected = async () => {
-    if (window.ethereum) {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const accounts = await provider.listAccounts();
-      if (accounts.length > 0) {
-        const signer = await provider.getSigner();
-        const address = await signer.getAddress();
-        setWalletAddress(address);
-        setProvider(provider);
-        setSigner(signer);
-      }
-    }
-  };
-
-  const connectWallet = async () => {
-    if (!window.ethereum) {
-      alert('Please install MetaMask to use this application!');
-      return;
-    }
-
-    try {
-      // Check if we're on Sepolia
-      const sepoliaChainId = '0xaa36a7'; // Chain ID for Sepolia
-      const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
-
-      if (currentChainId !== sepoliaChainId) {
-        try {
-          // Try to switch to Sepolia
-          await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: sepoliaChainId }],
-          });
-        } catch (switchError) {
-          // If Sepolia is not added to MetaMask, add it
-          if (switchError.code === 4902) {
-            await window.ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [{
-                chainId: sepoliaChainId,
-                chainName: 'Sepolia Test Network',
-                nativeCurrency: {
-                  name: 'ETH',
-                  symbol: 'ETH',
-                  decimals: 18
-                },
-                rpcUrls: ['https://sepolia.infura.io/v3/'],
-                blockExplorerUrls: ['https://sepolia.etherscan.io']
-              }]
-            });
-          } else {
-            throw switchError;
-          }
-        }
-      }
-      //I think the code bellow is not needed. There is a function above that does the same.
-
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      await provider.send("eth_requestAccounts", []);
-      const signer = await provider.getSigner();
-      const address = await signer.getAddress();
-
-      setWalletAddress(address);
-      setProvider(provider);
-      setSigner(signer); //delete until here if there is any issue
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
-      alert('Failed to connect wallet. Please make sure you are using the Sepolia network.');
-    }
-  };
-
-  const disconnectWallet = () => {
-    setWalletAddress(null);
-    setProvider(null);
-    setSigner(null);
-    setCurrentView('home');
-  };
+  const { isConnected } = useAccount();
 
   const handleMenuClick = (view) => {
-    if (!walletAddress) {
+    if (!isConnected) {
       alert('Please connect your wallet first!');
       return;
     }
     setCurrentView(view);
-  };
-
-  const renderView = () => {
-    if (!walletAddress) {
-      return (
-        <div className="connect-prompt">
-          <h2>Welcome to PalmPay</h2>
-          <p>Please connect your wallet to continue</p>
-        </div>
-      );
-    }
-
-    switch (currentView) {
-      case 'customer':
-        return <Customer walletAddress={walletAddress} signer={signer} />;
-      case 'store':
-        return <Store walletAddress={walletAddress} signer={signer} />;
-      default:
-        return (
-          <div className="home-view">
-            <h2>Select an option from the menu</h2>
-          </div>
-        );
-    }
   };
 
   return (
@@ -129,20 +69,7 @@ function App() {
       <header className="header">
         <h1>PalmPay</h1>
         <div className="wallet-info">
-          {walletAddress ? (
-            <>
-              <span className="wallet-address">
-                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-              </span>
-              <button onClick={disconnectWallet} className="btn-disconnect">
-                Disconnect
-              </button>
-            </>
-          ) : (
-            <button onClick={connectWallet} className="btn-connect">
-              Connect Wallet
-            </button>
-          )}
+          <ConnectButton />
         </div>
       </header>
 
@@ -162,9 +89,33 @@ function App() {
       </nav>
 
       <main className="content">
-        {renderView()}
+        {!isConnected ? (
+          <div className="connect-prompt">
+            <h2>Welcome to PalmPay</h2>
+            <p>Please connect your wallet to continue</p>
+          </div>
+        ) : (
+          <>
+            {currentView === 'customer' && <Customer />}
+            {currentView === 'store' && <Store />}
+            {currentView === 'home' && (
+              <div className="home-view">
+                <h2>Select an option from the menu</h2>
+              </div>
+            )}
+          </>
+        )}
       </main>
     </div>
+  );
+}
+
+// Main App component that provides WagmiConfig
+function App() {
+  return (
+    <WagmiConfig config={wagmiConfig}>
+      <AppContent />
+    </WagmiConfig>
   );
 }
 
