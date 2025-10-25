@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useContractWrite, useWaitForTransaction } from 'wagmi';
 import PropTypes from 'prop-types';
+import { getErrorMessage } from './lib/errorUtils';
 
 // Contract config
 const PALMPAY_CONTRACT = '0xcBDF0548025C208bAB08831E43514B6F1693F8c5';
@@ -74,7 +75,7 @@ function Store({ walletAddress }) {
 
     } catch (error) {
       console.error('Error registering store:', error);
-      alert(`Failed to register store: ${error.message}`);
+      alert(`Failed to register store: ${getErrorMessage(error)}`);
       setRegistering(false);
     }
   };
@@ -87,6 +88,11 @@ function Store({ walletAddress }) {
 
   const startCamera = async () => {
     try {
+      // Check if camera API is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera not supported in this browser. Please open this page in Safari or Chrome.');
+      }
+
       setShowCamera(true); // Show modal first
 
       // Small delay to ensure DOM is ready
@@ -119,7 +125,7 @@ function Store({ walletAddress }) {
       console.error('Camera error:', err);
       setShowCamera(false);
       setIsStreamReady(false);
-      alert(`Camera error: ${err.message}`);
+      alert(`Camera error: ${getErrorMessage(err)}`);
     }
   };
 
@@ -202,7 +208,7 @@ function Store({ walletAddress }) {
 
     } catch (error) {
       console.error('Error charging customer:', error);
-      alert(`Failed to charge customer: ${error.message}`);
+      alert(`Failed to charge customer: ${getErrorMessage(error)}`);
     } finally {
       setLoading(false);
     }

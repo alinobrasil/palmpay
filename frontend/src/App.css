@@ -24,6 +24,50 @@
   gap: 15px;
 }
 
+.network-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.network-badge {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.network-badge.correct-network {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.network-badge.wrong-network {
+  background-color: #ff9800;
+  color: white;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.btn-switch-network {
+  background-color: #2196F3;
+  color: white;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.btn-switch-network:hover {
+  background-color: #0b7dda;
+}
+
 .wallet-address {
   background-color: #444;
   padding: 8px 12px;

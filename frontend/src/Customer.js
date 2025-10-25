@@ -3,6 +3,7 @@ import { useAccount, useSignMessage, useContractWrite, useContractRead, useWaitF
 import { parseUnits, formatUnits } from 'viem';
 import './Customer.css';
 import { getHistory } from './lib/history';
+import { getErrorMessage } from './lib/errorUtils';
 
 // Placeholder addresses - update these later
 const TOKEN_ADDRESS = '0xcac524bca292aaade2df8a05cc58f0a65b1b3bb9';
@@ -73,7 +74,8 @@ function Customer() {
     functionName: 'approve',
     chainId: 11155111,
     onError: (error) => {
-      console.error('Contract write error:', error);
+      console.error('Contract write error:', getErrorMessage(error));
+      alert(`Contract error: ${getErrorMessage(error)}`);
     },
   });
 
@@ -85,8 +87,13 @@ function Customer() {
         await refetchAllowance();
         // Wait a bit for the blockchain to update
         await new Promise(r => setTimeout(r, 2000));
-        const updatedHistory = await getHistory(address);
-        setTxHistory(updatedHistory);
+        if (address) {
+          const updatedHistory = await getHistory(address);
+          setTxHistory(updatedHistory || []);
+        }
+      } catch (error) {
+        console.error('Error updating after transaction:', error);
+        // Don't fail the whole transaction if history fetch fails
       } finally {
         setIsRefreshing(false);
         setPendingTx(null);
@@ -164,10 +171,11 @@ function Customer() {
 
     } catch (error) {
       console.error('Error registering palm:', error);
-      if (error.message === 'Failed to fetch') {
+      const errorMsg = getErrorMessage(error);
+      if (errorMsg === 'Failed to fetch') {
         alert('Cannot connect to the server. Please check if the backend is running and accessible.');
       } else {
-        alert(`Failed to register palm: ${error.message}`);
+        alert(`Failed to register palm: ${errorMsg}`);
       }
     } finally {
       setLoading(false);
@@ -219,7 +227,7 @@ function Customer() {
 
     } catch (error) {
       console.error('Error setting allowance:', error);
-      alert(`Failed to set allowance: ${error.message}`);
+      alert(`Failed to set allowance: ${getErrorMessage(error)}`);
       setLoadingTx(false);
     }
   };
@@ -232,10 +240,12 @@ function Customer() {
 
     const pollHistory = async () => {
       try {
+        if (!address) return; // Double-check address exists
         const updatedHistory = await getHistory(address);
-        setTxHistory(updatedHistory);
+        setTxHistory(updatedHistory || []);
       } catch (error) {
         console.error('Error polling history:', error);
+        // Don't show alert for polling errors, just log them
       }
     };
 
@@ -341,42 +351,47 @@ function Customer() {
                 </tr>
               </thead>
               <tbody>
-                {txHistory.map((tx) => {
+                {(txHistory || []).map((tx, index) => {
                   if (!tx || !tx.details) return null;
 
-                  const amountMatch = tx.details.match(/\$?([\d.]+)/);
-                  const amount = amountMatch ? amountMatch[1] : '0';
-                  const date = new Date(tx.timestamp * 1000);
-                  const formattedDate = date.toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric'
-                  });
-                  const formattedTime = date.toLocaleTimeString(undefined, {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  });
+                  try {
+                    const amountMatch = tx.details.match(/\$?([\d.]+)/);
+                    const amount = amountMatch ? amountMatch[1] : '0';
+                    const date = new Date(tx.timestamp * 1000);
+                    const formattedDate = date.toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    });
+                    const formattedTime = date.toLocaleTimeString(undefined, {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    });
 
-                  return (
-                    <tr key={tx.blockNumber || Date.now()} className="tx-row">
-                      <td>
-                        <div className="tx-date">
-                          <span className="tx-day">{formattedDate}</span>
-                          <span className="tx-time">{formattedTime}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`tx-badge ${(tx.type || '').toLowerCase()}`}>
-                          {tx.type || 'Unknown'}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="transaction-amount">
-                          ${formatNumber(amount)}
-                        </span>
-                      </td>
-                    </tr>
-                  );
+                    return (
+                      <tr key={tx.blockNumber || `tx-${index}`} className="tx-row">
+                        <td>
+                          <div className="tx-date">
+                            <span className="tx-day">{formattedDate}</span>
+                            <span className="tx-time">{formattedTime}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`tx-badge ${(tx.type || '').toLowerCase()}`}>
+                            {tx.type || 'Unknown'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="transaction-amount">
+                            ${formatNumber(amount)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  } catch (error) {
+                    console.error('Error rendering transaction:', error, tx);
+                    return null;
+                  }
                 })}
               </tbody>
             </table>
