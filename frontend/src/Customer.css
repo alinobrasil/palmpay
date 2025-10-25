@@ -223,6 +223,31 @@
     font-style: italic;
 }
 
+.preview-container {
+    margin: 20px 0;
+    text-align: center;
+    max-width: 300px;
+    /* Limit container width */
+}
+
+.palm-preview {
+    width: 100%;
+    max-width: 300px;
+    /* Limit image width */
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin: 10px 0;
+    object-fit: contain;
+    /* Maintain aspect ratio */
+}
+
+.file-info {
+    margin: 10px 0;
+    color: #666;
+    font-size: 0.9em;
+}
+
 @media (max-width: 768px) {
     .header {
         padding: 15px;

@@ -57,6 +57,7 @@ function Customer() {
   const [pendingTx, setPendingTx] = useState(null);
   const [txHistory, setTxHistory] = useState([]);
   const [loadingTx, setLoadingTx] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const { data: currentAllowance, refetch: refetchAllowance } = useContractRead({
     address: TOKEN_ADDRESS,
@@ -78,11 +79,20 @@ function Customer() {
 
   const { isLoading: isConfirming } = useWaitForTransaction({
     hash: pendingTx,
-    onSuccess: () => {
-      refetchAllowance();
-      setPendingTx(null);
-      setLoadingTx(false);
-      alert('Transaction confirmed!');
+    onSuccess: async () => {
+      try {
+        setIsRefreshing(true);
+        await refetchAllowance();
+        // Wait a bit for the blockchain to update
+        await new Promise(r => setTimeout(r, 2000));
+        const updatedHistory = await getHistory(address);
+        setTxHistory(updatedHistory);
+      } finally {
+        setIsRefreshing(false);
+        setPendingTx(null);
+        setLoadingTx(false);
+        alert('Transaction confirmed!');
+      }
     },
   });
 
@@ -189,7 +199,7 @@ function Customer() {
         try {
           tx = await approveTokens({
             args: [SPENDER_ADDRESS, amount],
-            gas: BigInt(100000), // Set explicit gas limit
+            gas: BigInt(100000),
           });
           break;
         } catch (err) {
@@ -203,7 +213,7 @@ function Customer() {
       }
 
       setPendingTx(tx.hash);
-      addTransaction(tx.hash, `Approve ${allowanceAmount} tokens`);
+      // Don't update history here, wait for confirmation
       alert('Transaction submitted! Waiting for confirmation...');
       setAllowanceAmount('');
 
@@ -216,13 +226,24 @@ function Customer() {
 
   const formattedAllowance = currentAllowance ? formatUnits(currentAllowance, 6) : '0';
 
+  // Add polling effect for transaction history
   React.useEffect(() => {
-    if (address) {
-      getHistory(address).then(history => {
-        setTxHistory(history);
-      });
-    }
-  }, [address]);
+    if (!address || isRefreshing || loadingTx) return;
+
+    const pollHistory = async () => {
+      try {
+        const updatedHistory = await getHistory(address);
+        setTxHistory(updatedHistory);
+      } catch (error) {
+        console.error('Error polling history:', error);
+      }
+    };
+
+    pollHistory();
+    const interval = setInterval(pollHistory, 10000); // Poll every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [address, isRefreshing, loadingTx]);
 
   return (
     <div className="customer-view">
