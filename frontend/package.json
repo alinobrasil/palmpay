@@ -10,11 +10,17 @@
     "eject": "react-scripts eject"
   },
   "dependencies": {
+    "@web3modal/ethereum": "^2.7.1",
+    "@web3modal/react": "^2.7.1",
+    "@web3modal/wagmi": "^5.1.11",
     "ethers": "^6.7.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-router-dom": "^7.9.4",
     "react-scripts": "5.0.1",
-    "react-webcam": "^7.2.0"
+    "react-webcam": "^7.2.0",
+    "viem": "^1.21.4",
+    "wagmi": "^1.4.13"
   },
   "browserslist": {
     "production": [
@@ -27,5 +33,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "ngrok": "^5.0.0-beta.2"
   }
 }
