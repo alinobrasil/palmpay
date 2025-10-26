@@ -8,6 +8,8 @@ import ErrorBoundary from './ErrorBoundary';
 import Customer from './Customer';
 import Store from './Store';
 import './App.css';
+import { ToastProvider } from './components/Toast/Toast';
+import { useToast } from './components/Toast/Toast';
 
 // Separate ConnectButton component
 function ConnectButton() {
@@ -46,6 +48,7 @@ function ConnectButton() {
 
 // Separate AppContent component that uses wagmi hooks
 function AppContent() {
+  const { addToast } = useToast();
   const [currentView, setCurrentView] = useState('home');
   const [isReady, setIsReady] = useState(false);
   const { address, isConnected } = useAccount();
@@ -72,7 +75,7 @@ function AppContent() {
 
   const handleMenuClick = (view) => {
     if (!isConnected) {
-      alert('Please connect your wallet first!');
+      addToast('Please connect your wallet first!');
       return;
     }
     setCurrentView(view);
@@ -129,7 +132,9 @@ function App() {
   return (
     <ErrorBoundary>
       <WagmiConfig config={wagmiConfig}>
-        <AppContent />
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
       </WagmiConfig>
       <Web3Modal
         projectId={WALLETCONNECT_PROJECT_ID}

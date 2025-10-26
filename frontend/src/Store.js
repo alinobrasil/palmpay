@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useContractWrite, useWaitForTransaction } from 'wagmi';
 import PropTypes from 'prop-types';
 import { getErrorMessage } from './lib/errorUtils';
+import { useToast } from './components/Toast/Toast';
 
 // Contract config
 const PALMPAY_CONTRACT = '0xcBDF0548025C208bAB08831E43514B6F1693F8c5';
@@ -22,6 +23,8 @@ const PALMPAY_ABI = [
 const API_BASE_URL = 'https://palmpay-production.up.railway.app';
 
 function Store({ walletAddress }) {
+  const { addToast } = useToast();
+
   // Add debug log when component mounts
   React.useEffect(() => {
     console.log('Store component mounted with wallet:', walletAddress);
@@ -52,7 +55,7 @@ function Store({ walletAddress }) {
     onSuccess: () => {
       setPendingTx(null);
       setRegistering(false);
-      alert('Store registered successfully!');
+      addToast('Store registered successfully!', 'success');
       setStoreName('');
       setStoreCity('');
     },
@@ -60,7 +63,7 @@ function Store({ walletAddress }) {
 
   const handleRegisterStore = async () => {
     if (!storeName || !storeCity) {
-      alert('Please fill in all fields');
+      addToast('Please fill in all fields', 'error');
       return;
     }
 
@@ -71,11 +74,11 @@ function Store({ walletAddress }) {
       });
 
       setPendingTx(tx.hash);
-      alert('Registration submitted! Waiting for confirmation...');
+      addToast('Registration submitted! Waiting for confirmation...', 'info');
 
     } catch (error) {
       console.error('Error registering store:', error);
-      alert(`Failed to register store: ${getErrorMessage(error)}`);
+      addToast(`Failed to register store: ${error.message}`, 'error');
       setRegistering(false);
     }
   };
@@ -148,7 +151,7 @@ function Store({ walletAddress }) {
         errorMsg = 'Camera access requires HTTPS. Please use https:// instead of http://';
       }
 
-      alert(`Camera error: ${errorMsg}`);
+      addToast(`Camera error: ${errorMsg}`);
     }
   };
 
@@ -174,7 +177,7 @@ function Store({ walletAddress }) {
       }, 'image/jpeg', 0.8);
     } catch (err) {
       console.error('Capture error:', err);
-      alert('Failed to capture image. Please try again.');
+      addToast('Failed to capture image. Please try again.');
     }
   };
 
@@ -188,7 +191,7 @@ function Store({ walletAddress }) {
 
   const handleChargeClick = () => {
     if (!usdAmount || usdAmount <= 0) {
-      alert('Please enter a valid USD amount');
+      addToast('Please enter a valid USD amount', 'error');
       return;
     }
     startCamera();
@@ -196,7 +199,7 @@ function Store({ walletAddress }) {
 
   const chargeCustomer = async () => {
     if (!walletAddress) {
-      alert('Please connect your wallet first');
+      addToast('Please connect your wallet first', 'error');
       return;
     }
 
@@ -225,13 +228,13 @@ function Store({ walletAddress }) {
       }
 
       const result = responseText ? JSON.parse(responseText) : {};
-      alert(`Customer charged successfully!\nAmount: $${usdAmount}`);
+      addToast(`Customer charged successfully! Amount: $${usdAmount}`, 'success');
       setUsdAmount('');
       setPalmImage(null);
 
     } catch (error) {
       console.error('Error charging customer:', error);
-      alert(`Failed to charge customer: ${getErrorMessage(error)}`);
+      addToast(`Failed to charge customer: ${error.message}`, 'error');
     } finally {
       setLoading(false);
     }

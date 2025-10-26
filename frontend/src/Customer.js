@@ -4,6 +4,7 @@ import { parseUnits, formatUnits } from 'viem';
 import './Customer.css';
 import { getHistory } from './lib/history';
 import { getErrorMessage } from './lib/errorUtils';
+import { useToast } from './components/Toast/Toast';
 
 // Placeholder addresses - update these later
 const TOKEN_ADDRESS = '0xcac524bca292aaade2df8a05cc58f0a65b1b3bb9';
@@ -52,6 +53,7 @@ function formatNumber(value) {
 function Customer() {
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const { addToast } = useToast();
   const [palmImage, setPalmImage] = useState(null);
   const [allowanceAmount, setAllowanceAmount] = useState('');
   const [loading, setLoading] = useState(false);
@@ -75,7 +77,7 @@ function Customer() {
     chainId: 11155111,
     onError: (error) => {
       console.error('Contract write error:', getErrorMessage(error));
-      alert(`Contract error: ${getErrorMessage(error)}`);
+      addToast(`Contract error: ${getErrorMessage(error)}`);
     },
   });
 
@@ -98,7 +100,7 @@ function Customer() {
         setIsRefreshing(false);
         setPendingTx(null);
         setLoadingTx(false);
-        alert('Transaction confirmed!');
+        addToast('Transaction confirmed!');
       }
     },
   });
@@ -111,7 +113,7 @@ function Customer() {
 
   const registerPalm = async () => {
     if (!palmImage || !address) {
-      alert('Please select a palm image and connect your wallet first');
+      addToast('Please select a palm image and connect your wallet first', 'error');
       return;
     }
 
@@ -166,16 +168,16 @@ function Customer() {
       const result = responseText ? JSON.parse(responseText) : {};
       console.log('Parsed result:', result);
 
-      alert(`Palm registered successfully!\nFilename: ${result.filename || 'unknown'}\nTotal palms: ${result.total_palms_for_wallet || 0}`);
+      addToast(`Palm registered successfully! Total palms: ${result.total_palms_for_wallet || 0}`, 'success');
       setPalmImage(null);
 
     } catch (error) {
       console.error('Error registering palm:', error);
       const errorMsg = getErrorMessage(error);
       if (errorMsg === 'Failed to fetch') {
-        alert('Cannot connect to the server. Please check if the backend is running and accessible.');
+        addToast('Cannot connect to the server. Please check if the backend is running and accessible.', 'error');
       } else {
-        alert(`Failed to register palm: ${errorMsg}`);
+        addToast(`Failed to register palm: ${errorMsg}`, 'error');
       }
     } finally {
       setLoading(false);
@@ -193,7 +195,7 @@ function Customer() {
 
   const setAllowance = async () => {
     if (!allowanceAmount || allowanceAmount <= 0) {
-      alert('Please enter a valid allowance amount');
+      addToast('Please enter a valid allowance amount', 'error');
       return;
     }
 
@@ -221,13 +223,12 @@ function Customer() {
       }
 
       setPendingTx(tx.hash);
-      // Don't update history here, wait for confirmation
-      alert('Transaction submitted! Waiting for confirmation...');
+      addToast('Transaction submitted! Waiting for confirmation...', 'info');
       setAllowanceAmount('');
 
     } catch (error) {
       console.error('Error setting allowance:', error);
-      alert(`Failed to set allowance: ${getErrorMessage(error)}`);
+      addToast(`Failed to set allowance: ${getErrorMessage(error)}`, 'error');
       setLoadingTx(false);
     }
   };
