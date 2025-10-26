@@ -28,6 +28,15 @@ const config: HardhatUserConfig = {
     hardhat: {
       type: "edr-simulated",
       chainType: "l1",
+      forking: process.env.MAINNET_RPC_URL ? {
+        url: process.env.MAINNET_RPC_URL,
+        // blockNumber: 12345678, // Optional: pin to specific block
+      } : undefined,
+    },
+    localhost: {
+      type: "http",
+      chainType: "l1",
+      url: "http://127.0.0.1:8545",
     },
     sepolia: {
       type: "http",
