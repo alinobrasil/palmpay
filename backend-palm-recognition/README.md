@@ -8,7 +8,7 @@ This backend runs an API server using Flask. It can register & verify palms and 
 ### Main endpoints:
 
 #### POST `/register`
-- Register a new palmprint for a wallet address.
+- Register a new palmprint for a wallet address. Verify user with their signature.
 - Expects:
 	- `wallet_address` (string, required)
 	- `palm_image` (file, required)
