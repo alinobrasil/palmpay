@@ -1,4 +1,4 @@
-Starting point - using [EDCC palm recognition](https://github.com/leosocy/EDCC-Palmprint-Recognition?tab=readme-ov-file) repo for verifying palms. It has MIT license. 
+Starting point - using [EDCC palm recognition](https://github.com/leosocy/EDCC-Palmprint-Recognition?tab=readme-ov-file) repo for verifying palms. It has MIT license. It's accuracy is questionable. But just using this as POC.
 
 This backend runs an API server using Flask. It can register & verify palms and ultimately execute token transfers as allowed by the customer.
 
@@ -44,4 +44,16 @@ This backend runs an API server using Flask. It can register & verify palms and 
 
 ------
 
-Just run the dockerfile.
+# how to run backend server
+
+```
+# Build the image
+  docker build -t palm-api .
+
+# Run the container
+  docker run -d -p 8000:8000 --env-file .env \
+    -v $(pwd)/registered_palms:/app/registered_palms \
+    -v $(pwd)/api:/app/api \
+    -v $(pwd)/debug_output:/app/debug_output \
+    --name palm-api-container palm-api
+```
